@@ -37,14 +37,23 @@ function renderImages(images) {
   });
 }
 
+// Show/hide loading spinner
+function setLoadingSpinner(visible) {
+  const spinner = document.getElementById('loading');
+  if (spinner) spinner.style.display = visible ? 'block' : 'none';
+}
+
 // Load next batch of images
 async function loadImages() {
   if (loading) return;
   loading = true;
+  setLoadingSpinner(true);
+
   let newImages = await fetchDoomImages(page, IMAGES_PER_PAGE);
 
-  // Fallback to static images if API fails or returns nothing
-  if (newImages.length === 0 && doomImages.length === 0) {
+  // If API returns less than requested, try to fetch more until IMAGES_PER_PAGE is filled
+  if (newImages.length < IMAGES_PER_PAGE && doomImages.length === 0) {
+    // Fallback to static images
     doomImages = [
       'https://upload.wikimedia.org/wikipedia/en/5/57/Doom_cover_art.jpg',
       'https://static.wikia.nocookie.net/doom/images/2/2e/Doom1.png',
@@ -57,12 +66,19 @@ async function loadImages() {
       'https://static.wikia.nocookie.net/doom/images/2/2e/Doom8.png',
       'https://static.wikia.nocookie.net/doom/images/3/3e/Doom9.png',
     ];
-    newImages = doomImages.slice(page * IMAGES_PER_PAGE, (page + 1) * IMAGES_PER_PAGE);
+    // Fill up to IMAGES_PER_PAGE
+    const start = page * IMAGES_PER_PAGE;
+    const end = start + IMAGES_PER_PAGE;
+    newImages = doomImages.slice(start, end);
   }
 
-  renderImages(newImages);
-  page++;
+  // Only render if there are images
+  if (newImages.length > 0) {
+    renderImages(newImages);
+    page++;
+  }
   loading = false;
+  setLoadingSpinner(false);
 }
 
 // Infinite scroll handler
