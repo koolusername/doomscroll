@@ -1,0 +1,31 @@
+body {
+  font-family: Arial, sans-serif;
+  background: #222;
+  color: #fff;
+  margin: 0;
+  padding: 0;
+}
+h1 {
+  text-align: center;
+  margin: 20px 0;
+}
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  padding: 16px;
+}
+.img-card {
+  background: #333;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.img-card img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
