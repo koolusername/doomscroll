@@ -1,68 +1,74 @@
-// Doom Infinite Scroll Gallery
-// Fetches images from Wikimedia Commons, falls back to static images if needed
-
 const gallery = document.getElementById('gallery');
 const IMAGES_PER_PAGE = 10;
 let page = 0;
 let loading = false;
 let doomImages = [];
+let redditAfter = null;
 
-// Fetch Doom images from Wikimedia Commons, Wikipedia, or Reddit
+// Fetch Doom images from Wikimedia, Wikipedia, or Reddit
 async function fetchDoomImages(page, limit) {
-  // 1. Try Wikimedia Commons
-  const commonsApi = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=doom%20game&gsrlimit=${limit}&gsroffset=${page * limit}&prop=imageinfo&iiprop=url&format=json&origin=*`;
+  // 1. Wikimedia Commons
   try {
+    const commonsApi = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=doom%20game&gsrlimit=${limit}&gsroffset=${page * limit}&prop=imageinfo&iiprop=url&format=json&origin=*`;
     const res = await fetch(commonsApi);
     const data = await res.json();
-    if (data.query && data.query.pages) {
+    if (data.query?.pages) {
       const commonsImages = Object.values(data.query.pages)
-        .map(page => page.imageinfo && page.imageinfo[0].url)
+        .map(p => p.imageinfo?.[0]?.url)
         .filter(Boolean);
       if (commonsImages.length > 0) return commonsImages;
     }
-  } catch {}
+  } catch (e) {
+    console.warn('Wikimedia fetch error:', e);
+  }
 
-  // 2. Try Wikipedia
+  // 2. Wikipedia
   try {
     const wikiApi = 'https://en.wikipedia.org/w/api.php?action=query&titles=Doom_(1993_video_game)&prop=images&format=json&origin=*';
     const res = await fetch(wikiApi);
     const data = await res.json();
-    const pageObj = data.query && data.query.pages && Object.values(data.query.pages)[0];
-    if (pageObj && pageObj.images) {
-      const imageTitles = pageObj.images.map(img => img.title);
-      const urls = await Promise.all(imageTitles.map(async title => {
-        const urlApi = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=imageinfo&iiprop=url&format=json&origin=*`;
-        try {
-          const res = await fetch(urlApi);
-          const data = await res.json();
-          const page = data.query && data.query.pages && Object.values(data.query.pages)[0];
-          return page && page.imageinfo && page.imageinfo[0].url;
-        } catch {
-          return null;
-        }
-      }));
-      const wikiImages = urls.filter(Boolean).slice(page * limit, (page + 1) * limit);
-      if (wikiImages.length > 0) return wikiImages;
-    }
-  } catch {}
+    const pageObj = Object.values(data.query?.pages ?? {})[0];
+    const imageTitles = pageObj?.images?.map(img => img.title) ?? [];
 
-  // 3. Try Reddit (r/Doom)
+    const urls = await Promise.all(imageTitles.map(async title => {
+      try {
+        const urlApi = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=imageinfo&iiprop=url&format=json&origin=*`;
+        const res = await fetch(urlApi);
+        const data = await res.json();
+        const page = Object.values(data.query?.pages ?? {})[0];
+        return page?.imageinfo?.[0]?.url || null;
+      } catch {
+        return null;
+      }
+    }));
+
+    const wikiImages = urls.filter(Boolean).slice(0, limit);
+    if (wikiImages.length > 0) return wikiImages;
+  } catch (e) {
+    console.warn('Wikipedia fetch error:', e);
+  }
+
+  // 3. Reddit (r/Doom)
   try {
-    const redditApi = `https://www.reddit.com/r/Doom.json?limit=${limit}&after=${page * limit}`;
+    const redditApi = `https://www.reddit.com/r/Doom.json?limit=${limit}${redditAfter ? `&after=${redditAfter}` : ''}`;
     const res = await fetch(redditApi);
     const data = await res.json();
-    if (data.data && data.data.children) {
+    redditAfter = data.data?.after || null;
+
+    if (data.data?.children) {
       const redditImages = data.data.children
-        .map(post => post.data && post.data.url)
-        .filter(url => url && (url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.jpeg')));
+        .map(post => post.data?.url)
+        .filter(url => url && /\.(jpg|jpeg|png|gif)$/i.test(url));
       if (redditImages.length > 0) return redditImages;
     }
-  } catch {}
+  } catch (e) {
+    console.warn('Reddit fetch error:', e);
+  }
 
   return [];
 }
 
-// Render images to the gallery
+// Render images
 function renderImages(images) {
   images.forEach(imgUrl => {
     const card = document.createElement('div');
@@ -70,18 +76,19 @@ function renderImages(images) {
     const img = document.createElement('img');
     img.src = imgUrl;
     img.alt = 'Doom screenshot';
+    img.loading = 'lazy';
     card.appendChild(img);
     gallery.appendChild(card);
   });
 }
 
-// Show/hide loading spinner
+// Show/hide spinner
 function setLoadingSpinner(visible) {
   const spinner = document.getElementById('loading');
-  if (spinner) spinner.style.display = visible ? 'block' : 'none';
+  spinner.style.display = visible ? 'block' : 'none';
 }
 
-// Load next batch of images
+// Load images and handle fallback
 async function loadImages() {
   if (loading) return;
   loading = true;
@@ -89,7 +96,7 @@ async function loadImages() {
 
   let newImages = await fetchDoomImages(page, IMAGES_PER_PAGE);
 
-  // Always fallback to static images if API returns zero images
+  // Static fallback
   if (newImages.length === 0) {
     if (doomImages.length === 0) {
       doomImages = [
@@ -110,24 +117,23 @@ async function loadImages() {
     newImages = doomImages.slice(start, end);
   }
 
-  // Only render if there are images
   if (newImages.length > 0) {
     renderImages(newImages);
     page++;
   }
-  loading = false;
+
   setLoadingSpinner(false);
+  loading = false;
 }
 
-// Infinite scroll handler
-async function handleScroll() {
-  if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 100) {
-    await loadImages();
+// Infinite scroll trigger
+function handleScroll() {
+  if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 300) {
+    loadImages();
   }
 }
 
 window.addEventListener('scroll', handleScroll);
 
 // Initial load
-loadImages();
 loadImages();

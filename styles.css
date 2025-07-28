@@ -1,31 +1,39 @@
 body {
   font-family: Arial, sans-serif;
-  background: #222;
+  background: #111;
   color: #fff;
   margin: 0;
   padding: 0;
-}
-h1 {
   text-align: center;
+}
+
+h1 {
   margin: 20px 0;
 }
+
 .gallery {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 16px;
-  padding: 16px;
+  padding: 20px;
 }
+
 .img-card {
-  background: #333;
+  background: #222;
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  width: 300px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.7);
+  transition: transform 0.2s;
 }
+
+.img-card:hover {
+  transform: scale(1.05);
+}
+
 .img-card img {
   width: 100%;
-  height: auto;
   display: block;
+  height: auto;
 }
